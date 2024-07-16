@@ -23,6 +23,8 @@ Coming soon. In the meantime, you can find several examples of use in the src/ev
 
 ## Project description
 
+Description of the content of the directories included in the src folder.
+
 ### Main
 
 Sources of the library. Contains two packages pridwen.types and pridwen.operators.
