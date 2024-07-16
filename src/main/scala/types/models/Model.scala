@@ -73,4 +73,14 @@ object Model {
             (d: List[FieldType[Graph.Source, SourceS] :: FieldType[Graph.Destination, DestS] :: FieldType[Graph.Edge, EdgeS] :: HNil]) => Graph[SourceS, LS, DestS, LD, EdgeS, LE](d)
         )
     }
+
+    trait AsString[M] { def apply(): String }
+    protected trait AsString1 {
+        implicit def is_other[T]: AsString[T] = new AsString[T] { def apply() = "Model" }
+    }
+    object AsString extends AsString1 {
+        implicit def is_relation: AsString[Relation] = new AsString[Relation] { def apply() = "Relation" }
+        implicit def is_json: AsString[JSON] = new AsString[JSON] { def apply() = "JSON" }
+        implicit def is_graph: AsString[Graph] = new AsString[Graph] { def apply() = "Graph" }
+    }
 }

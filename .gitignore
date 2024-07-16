@@ -6,3 +6,4 @@ project/
 .metals/
 src/eval/cs.json
 src/eval/g_rt
+src/main/scala/Main.scala
