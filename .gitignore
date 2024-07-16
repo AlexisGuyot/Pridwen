@@ -1,6 +1,6 @@
 *.class
 *.log
-target
-project
-.vscode
-.metals
+target/
+project/
+.vscode/
+.metals/
