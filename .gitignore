@@ -4,3 +4,5 @@ target/
 project/
 .vscode/
 .metals/
+src/eval/cs.json
+src/eval/g_rt
