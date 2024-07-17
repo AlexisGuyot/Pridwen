@@ -46,6 +46,8 @@ object implicits {
     implicit class DatasetExtension[S, HS <: HList](ds: Dataset[S])(implicit toHList: LabelledGeneric.Aux[S, HS]) {
         def asModel[M <: Model](implicit isValid: Model.As[HS, M]) = new Data[M, HS] { type DST = S ; val data = ds }
     }
+
+    implicit def witnessToPath[FN <: Symbol](f: Witness.Aux[FN])(implicit p: Path[Witness.Aux[FN] :: HNil]): Path.Aux[Witness.Aux[FN] :: HNil, p.T] = p
 }
 
 object Data {
@@ -62,34 +64,40 @@ object Data {
 }
 
 final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
-    // toModel
+    // ============ Change model
+
     def as[NM <: Model](implicit isValid: Model.As[S, NM]): Data[NM, S] = new Data[NM, S] {
         type DST = d.DST
         val data = d.data
     }
 
-    // project
-    def select[FN <: Symbol, FT](attribute: Witness.Aux[FN])(implicit s: SelectField.Aux[S, FN :: HNil, FN, FT]): Data[M, FieldType[FN, FT] :: HNil] = new Data[M, FieldType[FN, FT] :: HNil] {
-        type DST = Row
-        val data = d.data.select(d.data.col(attribute.value.name))
-    }
+    // ============ Project attribute(s)
 
+    // Project one attribute (Path)
     def select[PW <: HList, PS <: HList, FN, FT](path: Path.Aux[PW, PS])(implicit s: SelectField.Aux[S, PS, FN, FT]): Data[M, FieldType[FN, FT] :: HNil] = new Data[M, FieldType[FN, FT] :: HNil] {
         type DST = Row
         val data = d.data.select(d.data.col(path.asString))
     }
 
+    // Project multiple attributes (HList of Witness/Path)
     def select[MPW <: HList, MPS <: HList, NS <: HList](paths: MPW)(implicit pathsOfSymb: MultiplePaths.Aux[MPW, MPS], s: SelectMany.Aux[S, MPS, NS]): Data[M, NS] = new Data[M, NS] {
         type DST = Row
         val data = d.data.select(pathsOfSymb.asStrings.head, pathsOfSymb.asStrings.tail: _*)
     }
 
+    // Project multiple attributes (MultiplePaths)
     def select[MPW <: HList, MPS <: HList, NS <: HList](paths: MultiplePaths.Aux[MPW, MPS])(implicit s: SelectMany.Aux[S, MPS, NS]): Data[M, NS] = new Data[M, NS] {
         type DST = Row
         val data = d.data.select(paths.asStrings.head, paths.asStrings.tail: _*)
     }
 
-    // select
+    // ============ Select rows
+
+    def filter[O, I](f: FilterOps[O,I])(implicit filter: FilterOps.Compute[S, O, I]): Data[M, S] = new Data[M, S] {
+        type DST = d.DST
+        val data = d.data.filter(filter.toSparkColumn)
+    }
+
     // add column
     // drop column
     // rename column
