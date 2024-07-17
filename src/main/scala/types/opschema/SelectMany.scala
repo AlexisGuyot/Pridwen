@@ -37,7 +37,7 @@ trait SelectMany[Schema <: HList, Paths <: HList] {
     def apply(data: Schema): Out 
 }
 
-object SelectMany {
+trait SelectMany1 {
     type Aux[Schema <: HList, Paths <: HList, Out0 <: HList] = SelectMany[Schema, Paths] { type Out = Out0 }
 
     /** Creates a term of type SelectMany (encapsulated function that creates a new tuple with the selected fields).
@@ -82,6 +82,16 @@ object SelectMany {
     ) = inhabit_type[S, FP::OP, FieldType[FN,FT]::OF](
         (d: S) => getField(d) :: getOthers(d)
     )
+}
+object SelectMany extends SelectMany1 {
+    implicit def path_with_alias[
+        S <: HList, P, NN <: Symbol, T <: HList, Out0 <: HList
+    ](
+        implicit
+        selectAs: As.Aux[S, (P, NN)::T, Out0]
+    ) = inhabit_type[S, (P, NN)::T, Out0](
+        (d: S) => selectAs(d)
+    )
 
     trait As[Schema <: HList, Paths <: HList] { type Out <: HList ; def apply(data: Schema): Out }
     object As {
@@ -104,7 +114,8 @@ object SelectMany {
         implicit def multiple_paths[S <: HList, P, NN <: Symbol, T <: HList, FN, FT, Out0 <: HList](
             implicit
             selectField: SelectField.Aux[S, P, FN, FT],
-            selectOthers: SelectMany.As.Aux[S, T, Out0]
+            //selectOthers: SelectMany.As.Aux[S, T, Out0]
+            selectOthers: SelectMany.Aux[S, T, Out0]
         ) = inhabit_type[S, (P, NN)::T, FieldType[NN, FT]::Out0](
             (d: S) => field[NN](fieldToValue(selectField(d))) :: selectOthers(d)
         )

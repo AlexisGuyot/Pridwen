@@ -11,6 +11,8 @@ object functions {
     implicit class ExtendWitness[FN1 <: Symbol](f1: Witness.Aux[FN1]) {
         def ->[FN2 <: Symbol](f2: Witness.Aux[FN2])(implicit path: Path[Witness.Aux[FN1] :: Witness.Aux[FN2] :: HNil]): Path.Aux[Witness.Aux[FN1] :: Witness.Aux[FN2] :: HNil, path.T] = path
         def &&[WP <: HList, SP <: HList](p: Path.Aux[WP, SP])(implicit paths: MultiplePaths[Witness.Aux[FN1] :: Path.Aux[WP, SP] :: HNil]): MultiplePaths.Aux[Witness.Aux[FN1] :: Path.Aux[WP, SP] :: HNil, paths.T] = paths
+        def &&[WP <: HList, NN <: Symbol, SP <: HList](p: Path.As.Aux[WP, NN, SP])(implicit paths: MultiplePaths[Witness.Aux[FN1] :: Path.As.Aux[WP, NN, SP] :: HNil]): MultiplePaths.Aux[Witness.Aux[FN1] :: Path.As.Aux[WP, NN, SP] :: HNil, paths.T] = paths
+        def as[FN <: Symbol](alias: Witness.Aux[FN])(implicit path: Path.As[Witness.Aux[FN1] :: HNil, FN]): Path.As.Aux[Witness.Aux[FN1] :: HNil, FN, path.T] = path
 
         def ===[T](f2: T)(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new FilterOps[FilterOps.Equal, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], T)] {}
         def =!=[T](f2: T)(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new FilterOps[FilterOps.Different, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], T)] {}
@@ -25,7 +27,9 @@ object functions {
     implicit class ExtendPath[WP1 <: HList, SP1 <: HList](p: Path.Aux[WP1, SP1]) {
         def ->[FN <: Symbol, P <: HList](f: Witness.Aux[FN])(implicit prepend: Prepend.Aux[WP1, Witness.Aux[FN] :: HNil, P], path: Path[P]): Path.Aux[P, path.T] = path
         def &&[WP2 <: HList, SP2 <: HList](p2: Path.Aux[WP2, SP2])(implicit paths: MultiplePaths[Path.Aux[WP1, SP1] :: Path.Aux[WP2, SP2] :: HNil]): MultiplePaths.Aux[Path.Aux[WP1, SP1] :: Path.Aux[WP2, SP2] :: HNil, paths.T] = paths
-    
+        def &&[WP2 <: HList, NN <: Symbol, SP2 <: HList](p2: Path.As.Aux[WP2, NN, SP2])(implicit paths: MultiplePaths[Path.Aux[WP1, SP1] :: Path.As.Aux[WP2, NN, SP2] :: HNil]): MultiplePaths.Aux[Path.Aux[WP1, SP1] :: Path.As.Aux[WP2, NN, SP2] :: HNil, paths.T] = paths
+        def as[FN <: Symbol](alias: Witness.Aux[FN])(implicit path: Path.As[WP1, FN]): Path.As.Aux[WP1, FN, path.T] = path
+
         def ===[T](f2: T) = new FilterOps[FilterOps.Equal, (Path.Aux[WP1, SP1], T)] {}
         def =!=[T](f2: T) = new FilterOps[FilterOps.Different, (Path.Aux[WP1, SP1], T)] {}
         def >[T](f2: T) = new FilterOps[FilterOps.MoreThan, (Path.Aux[WP1, SP1], T)] {}
@@ -38,6 +42,7 @@ object functions {
 
     implicit class ExtendMultiplePaths[MP <: HList, MPS <: HList](mp: MultiplePaths.Aux[MP, MPS]) {
         def &&[WP <: HList, SP <: HList, NMP <: HList](p: Path.Aux[WP, SP])(implicit prepend: Prepend.Aux[MP, Path.Aux[WP, SP] :: HNil, NMP], paths: MultiplePaths[NMP]): MultiplePaths.Aux[NMP, paths.T] = paths
+        def &&[WP <: HList, NN <: Symbol, SP <: HList, NMP <: HList](p: Path.As.Aux[WP, NN, SP])(implicit prepend: Prepend.Aux[MP, Path.As.Aux[WP, NN, SP] :: HNil, NMP], paths: MultiplePaths[NMP]): MultiplePaths.Aux[NMP, paths.T] = paths
     }
 
     implicit class ExtendFilterOps[O1 <: FilterOps.FOperator,I1](f1: FilterOps[O1,I1]) {
