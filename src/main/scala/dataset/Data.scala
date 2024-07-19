@@ -4,10 +4,12 @@ import pridwen.types.models._
 import pridwen.types.opschema._
 import pridwen.types.support.{DeepLabelledGeneric => LabelledGeneric, DecompPath}
 
+import ColumnOps._
+
 import shapeless.{HList, HNil, ::, Witness}
 import shapeless.labelled.{FieldType}
 
-import org.apache.spark.sql.{Dataset, DataFrame, Encoder, Row}
+import org.apache.spark.sql.{Dataset, DataFrame, Encoder, Row, Column}
 import org.apache.spark.sql.functions.{col, lit, struct, typedLit}
 
 import scala.reflect.runtime.universe.TypeTag
@@ -50,7 +52,9 @@ object implicits {
         def asModel[M <: Model](implicit isValid: Model.As[HS, M]) = new Data[M, HS] { type DST = S ; val data = ds }
     }
 
-    implicit def witnessToPath[FN <: Symbol](f: Witness.Aux[FN])(implicit p: Path[Witness.Aux[FN] :: HNil]): Path.Aux[Witness.Aux[FN] :: HNil, p.T] = p
+    implicit def witnessToPath[FN <: Symbol, PS <: HList](f: Witness.Aux[FN])(implicit p: Path[Witness.Aux[FN] :: HNil]): Path.Aux[Witness.Aux[FN] :: HNil, p.T] = p
+    implicit def witnessToMultiple[FN <: Symbol](f: Witness.Aux[FN])(implicit mp: MultiplePaths[Witness.Aux[FN] :: HNil]): MultiplePaths.Aux[Witness.Aux[FN] :: HNil, mp.T] = mp
+    implicit def pathToMultiple[PW <: HList, PS <: HList, MPS <: HList](p: Path.Aux[PW, PS])(implicit mp: MultiplePaths[Path.Aux[PW, PS] :: HNil]): MultiplePaths.Aux[Path.Aux[PW, PS] :: HNil, mp.T] = mp
 }
 
 object Data {
@@ -77,10 +81,10 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
     // ============ Project attribute(s)
 
     // Project one attribute (Path)
-    def select[PW <: HList, PS <: HList, FN, FT](path: Path.Aux[PW, PS])(implicit s: SelectField.Aux[S, PS, FN, FT]): Data[M, FieldType[FN, FT] :: HNil] = new Data[M, FieldType[FN, FT] :: HNil] {
+    /* def select[PW <: HList, PS <: HList, FN, FT](path: Path.Aux[PW, PS])(implicit s: SelectField.Aux[S, PS, FN, FT]): Data[M, FieldType[FN, FT] :: HNil] = new Data[M, FieldType[FN, FT] :: HNil] {
         type DST = Row
         val data = d.data.select(d.data.col(path.asString))
-    }
+    } */
 
     // Project one attribute (Path with alias)
     def select[PW <: HList, NN <: Symbol, PS <: HList, FT](path: Path.As.Aux[PW, NN, PS])(implicit s: SelectField.As.Aux[S, PS, NN, FT], alias: Witness.Aux[NN]): Data[M, FieldType[NN, FT] :: HNil] = new Data[M, FieldType[NN, FT] :: HNil] {
@@ -96,9 +100,31 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
 
     // ============ Select rows
 
-    def filter[O, I](f: FilterOps[O,I])(implicit filter: FilterOps.Compute[S, O, I]): Data[M, S] = new Data[M, S] {
+    def filter[O <: FOperator, I](f: FilterOps[O,I])(implicit filter: FilterOps.Compute[S, O, I]): Data[M, S] = new Data[M, S] {
         type DST = d.DST
         val data = d.data.filter(filter.toSparkColumn)
+    }
+
+    def filter[CPW <: HList, CPS <: HList, P <: HList, FN <: Symbol, FT, NS <: HList, F](
+        basedOn: MultiplePaths.Aux[CPW,CPS], f: F
+    )(
+        implicit
+        udf: FuncOnSchema.Aux[S, CPS, F, Boolean]
+    ): Data[M, S] = new Data[M, S] {
+        type DST = d.DST
+        val data = d.data.filter(udf(f)(basedOn.toColumns:_*))
+    }
+
+    def filter[MPW <: HList, MPS <: HList, P <: HList, FN <: Symbol, FT, NS <: HList, F](
+        f: F
+    )(
+        implicit
+        s: SelectAll.Aux[S, MPW],
+        basedOn: MultiplePaths.Aux[MPW, MPS],
+        udf: FuncOnSchema.Aux[S, MPS, F, Boolean]
+    ): Data[M, S] = new Data[M, S] {
+        type DST = d.DST
+        val data = d.data.filter(udf(f)(basedOn.toColumns:_*))
     }
 
     // ============ Add attribute
@@ -110,6 +136,43 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
         implicit
         p: DecompPath.Aux[PS, P, FN],
         a: AddField.Aux[S, P, FN, FT, NS]
+    ) = inner_add[NS, PW, PS](field, typedLit(default))
+
+    // New value by mapping
+    def add[FPW <: HList, FPS <: HList, CPW <: HList, CPS <: HList, P <: HList, FN <: Symbol, FT, NS <: HList, F](
+        field: Path.Aux[FPW,FPS], basedOn: MultiplePaths.Aux[CPW,CPS], f: F
+    )(
+        implicit
+        udf: FuncOnSchema.Aux[S, CPS, F, FT],
+        p: DecompPath.Aux[FPS, P, FN],
+        a: AddField.Aux[S, P, FN, FT, NS]
+    ) = inner_add[NS, FPW, FPS](field, udf(f)(basedOn.toColumns:_*))
+
+    // New value by mapping all columns
+    def add[FPW <: HList, FPS <: HList, MPW <: HList, MPS <: HList, P <: HList, FN <: Symbol, FT, NS <: HList, F](
+        field: Path.Aux[FPW,FPS], all: "*", f: F
+    )(
+        implicit
+        s: SelectAll.Aux[S, MPW],
+        basedOn: MultiplePaths.Aux[MPW, MPS],
+        udf: FuncOnSchema.Aux[S, MPS, F, FT],
+        p: DecompPath.Aux[FPS, P, FN],
+        a: AddField.Aux[S, P, FN, FT, NS]
+    ) = inner_add[NS, FPW, FPS](field, udf(f)(basedOn.toColumns:_*))
+
+    // New value using spark column operators
+    def add[FPW <: HList, FPS <: HList, O <: AOperator, I, P <: HList, FN <: Symbol, FT, NS <: HList](
+        field: Path.Aux[FPW,FPS], f: AddOps[O,I]
+    )(
+        implicit 
+        p: DecompPath.Aux[FPS, P, FN],
+        op: AddOps.Compute.Aux[S, O, I, FT],
+        add: AddField.Aux[S, P, FN, FT, NS]
+    ) = inner_add[NS, FPW, FPS](field, op.toSparkColumn)
+
+    private def inner_add[NS <: HList, PW <: HList, PS <: HList](
+        field: Path.Aux[PW, PS],
+        columns: Column
     ) = new {
         private def common[A <: Model, B <: HList]: Data[A,B] = new Data[A,B]{
             type DST = Row
@@ -117,9 +180,9 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
                 val path = field.asString.split("\\.")
                 if(path.size >= 2) {
                     val (subpath, fname) = (path.slice(0,path.size-1).mkString("."), path.last)
-                    d.data.withColumn(subpath, struct(col(s"$subpath.*"), typedLit(default).as(fname)))
+                    d.data.withColumn(subpath, struct(col(s"$subpath.*"), columns.as(fname)))
                 } else {
-                    d.data.withColumn(field.asString, typedLit(default))
+                    d.data.withColumn(field.asString, columns)
                 }
             }
         }
@@ -130,22 +193,7 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
         // With model change
         def changeModel[NM <: Model](implicit isValid: Model.As[NS, NM]): Data[NM, NS] = common[NM, NS]
     }
-
-    // New value from another column
-    /* def add[FN <: Symbol, PW <: HList, PS <: HList, CN <: Symbol, CT, FT, NS <: HList](
-        fname: Witness.Aux[FN], basedOn: Path.Aux[PW,PS], values: CT => FT
-    )(
-        implicit
-        s: SelectField.Aux[S, PS, CN, CT]
-    ) = ??? */
-
-    // New value by mapping all the columns
-    //def add[FN <: Symbol, SS, FT, NS <: HList](fname: Witness.Aux[FN], values: SS => FT) = ???
-
-    // New value by mapping some columns
-    /* def add[FN <: Symbol, SS, MPW <: HList, MPS <: HList, FT, NS <: HList](
-        fname: Witness.Aux[FN], basedOn: MultiplePaths.Aux[MPW,MPS], values: SS => FT
-    ) = ??? */
+    
 
     // ============ Drop attribute
 
