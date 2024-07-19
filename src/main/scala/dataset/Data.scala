@@ -8,11 +8,13 @@ import ColumnOps._
 
 import shapeless.{HList, HNil, ::, Witness}
 import shapeless.labelled.{FieldType}
+import shapeless.ops.hlist.Selector
 
 import org.apache.spark.sql.{Dataset, DataFrame, Encoder, Row, Column}
 import org.apache.spark.sql.functions.{col, lit, struct, typedLit}
 
 import scala.reflect.runtime.universe.TypeTag
+import scala.annotation.implicitNotFound
 
 
 trait Data[M <: Model, S <: HList] {
@@ -214,6 +216,42 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
         val data = d.data.drop(field.asString)
     } */
 
+    // ============ Update attribute
+
+    // With new name
+    def update[FN <: Symbol, NN <: Symbol, NT, F, NS <: HList](
+        field: Witness.Aux[FN], new_name: Witness.Aux[NN], f: F
+    )(
+        implicit
+        udf: FuncOnSchema.Aux[S, (FN::HNil) :: HNil, F, NT],
+        r: ReplaceField.Aux[S, FN :: HNil, NN, NT, NS]
+    ) = inner_update[NS](d.data.withColumnRenamed(field.value.name, new_name.value.name)
+                            .withColumn(new_name.value.name, udf(f)(col(new_name.value.name))))
+
+    // Without new name
+    def update[FN <: Symbol, NT, F, NS <: HList](
+        field: Witness.Aux[FN], f: F
+    )(
+        implicit
+        udf: FuncOnSchema.Aux[S, (FN::HNil) :: HNil, F, NT],
+        r: ReplaceField.Aux[S, FN :: HNil, FN, NT, NS]
+    ) = inner_update[NS](d.data.withColumn(field.value.name, udf(f)(col(field.value.name))))
+
+    private def inner_update[NS <: HList](
+        new_ds: Dataset[Row]
+    ) = new {
+        private def common[A <: Model, B <: HList]: Data[A,B] = new Data[A,B]{
+            type DST = Row
+            val data = new_ds
+        }
+
+        // Without model change
+        def keepModel(implicit isValid: Model.As[NS, M]): Data[M, NS] = common[M, NS]
+
+        // With model change
+        def changeModel[NM <: Model](implicit isValid: Model.As[NS, NM]): Data[NM, NS] = common[NM, NS]
+    }
+
     // ============ Rename attribute
 
     def withColumnRenamed[FN <: Symbol, FT, NN <: Symbol, NS <: HList](
@@ -239,20 +277,39 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
         val data = d.data.withColumnRenamed(old_name.asString, new_name.value.name)
     } */
 
-    // ============ Inner join between datasets
+    // ============ Join between datasets
 
-    /* def join[S2 <: HList, O, I, NS <: HList](d2: Data[M, S2], cond: FilterOps[O,I])(
+    type JoinModes = Witness.`"inner"`.T :: Witness.`"cross"`.T :: Witness.`"outer"`.T :: Witness.`"full"`.T :: Witness.`"fullouter"`.T :: Witness.`"full_outer"`.T :: Witness.`"left"`.T :: Witness.`"leftouter"`.T :: Witness.`"left_outer"`.T :: Witness.`"right"`.T :: Witness.`"rightouter"`.T :: Witness.`"right_outer"`.T :: Witness.`"semi"`.T :: Witness.`"leftsemi"`.T :: Witness.`"left_semi"`.T :: Witness.`"anti"`.T :: Witness.`"leftanti"`.T :: Witness.`"left_anti"`.T :: HNil
+
+    def join[S2 <: HList, M2 <: Model, O <: FOperator, I, JM <: String, NS <: HList](
+        d2: Data[M2, S2], cond: FilterOps[O,I], joinType: Witness.Aux[JM] = Witness("inner")
+    )(
         implicit
-        m: MergeSchema.Aux[S, S2, NS]
-    ) */
+        @implicitNotFound("[Pridwen / Dataset] Unknown join mode ${JM}. Please chose one among inner, cross, outer, full, fullouter, full_outer, left, leftouter, left_outer, right, rightouter, right_outer, semi, leftsemi, left_semi, anti, leftanti, left_anti.") 
+        modeExists: Selector[JoinModes, JM],
+        j: JoinOps.Aux[S, S2, O, I, NS]
+    ) = new {
+        private def common[A <: Model, B <: HList]: Data[A,B] = new Data[A,B]{
+            type DST = Row
+            val data = d.data.join(d2.data, j.toSparkColumn(d.data,d2.data), joinType.value)
+        }
 
-    // left join
-    // right join
-    // semi join (left)
-    // semi join (right)
-    // cartesian product
-    // group by
-    // aggregate
-    // order by
-    // update column
+        // Without model change
+        def keepLeftModel(implicit isValid: Model.As[NS, M]): Data[M, NS] = common[M, NS]
+        def keepRightModel(implicit isValid: Model.As[NS, M2]): Data[M2, NS] = common[M2, NS]
+
+        // With model change
+        def changeModel[NM <: Model](implicit isValid: Model.As[NS, NM]): Data[NM, NS] = common[NM, NS]
+    }
+
+    // ============ Aggregate datasets
+    
+    // Groupby + aggregate
+
+    // ============ Sort datasets
+
+    def orderBy[O <: OOperator, I](f: OrderOps[O,I])(implicit columns: OrderOps.Compute[S, O, I]): Data[M, S] = new Data[M, S] {
+        type DST = d.DST
+        val data = d.data.orderBy(columns.toSparkColumn:_*)
+    }
 }

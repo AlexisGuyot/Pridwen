@@ -194,9 +194,10 @@ object FuncOnSchema {
             def apply(f: Function2[T1, T2, R]) = udf(f)
         }
 
-    implicit def function_1[P1 <: HList, F1, T1: TypeTag, R: TypeTag, S <: HList](
+    implicit def function_1[P1 <: HList, F1, T1: TypeTag, R: TypeTag, S <: HList, NS <: HList](
         implicit
-        fieldsExists: SelectMany.Aux[S, P1 :: HNil, FieldType[F1,T1] :: HNil]
+        fieldsExists: SelectMany.Aux[S, P1 :: HNil, NS],
+        eq: =:=[NS, FieldType[F1,T1] :: HNil]
     ): Aux[S, P1 :: HNil, Function1[T1, R], R] = new FuncOnSchema[S, P1 :: HNil, Function1[T1, R]] { 
         type Return = R 
         def apply(f: Function1[T1, R]) = udf(f)

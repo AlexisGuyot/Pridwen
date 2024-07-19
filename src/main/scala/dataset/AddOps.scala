@@ -32,18 +32,6 @@ object AddOps {
             def toSparkColumn: Column = compute.toSparkColumn
         }
 
-        /* implicit def second_input_is_value[
-            S <: HList, WP1 <: HList, SP1 <: HList, FN1 <: Symbol, V, FT >: V, O <: AOperator
-        ](
-            implicit
-            select_f1: SelectField.Aux[S, SP1, FN1, FT],
-            isNumber: Selector[Numbers, FT],
-            compute: ColumnOps.Compute[S, O, (Path.Aux[WP1,SP1], Widen.Aux[V, FT])]
-        ): Aux[S, O, (Path.Aux[WP1,SP1], Widen.Aux[V, FT]), FT] = new Compute[S, O, (Path.Aux[WP1,SP1], Widen.Aux[V, FT])] {
-            type Out = FT
-            def toSparkColumn: Column = compute.toSparkColumn
-        } */
-
         implicit def second_input_is_path[
             S <: HList, WP1 <: HList, SP1 <: HList, WP2 <: HList, SP2 <: HList, FN1 <: Symbol, FN2 <: Symbol, FT, O <: AOperator
         ](

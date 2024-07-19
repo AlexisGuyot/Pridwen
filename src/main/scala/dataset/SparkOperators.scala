@@ -12,6 +12,7 @@ object ColumnOps {
 
     trait FOperator extends COperator
     trait AOperator extends COperator
+    trait OOperator extends COperator
 
     trait Equal extends FOperator with AOperator
     trait Different extends FOperator with AOperator
@@ -30,6 +31,9 @@ object ColumnOps {
     trait Add extends AOperator
     trait Substract extends AOperator
     trait Divide extends AOperator
+
+    trait Asc extends OOperator
+    trait Desc extends OOperator
 
     trait SparkOperator[O <: COperator] { def apply(c1: Column, c2: Any): Column }
     object SparkOperator {
@@ -71,6 +75,12 @@ object ColumnOps {
 
         implicit def op_is_divide: SparkOperator[Divide] 
             = new SparkOperator[Divide] { def apply(c1: Column, c2: Any) = c1 / c2 }
+
+        implicit def op_is_asc: SparkOperator[Asc] 
+            = new SparkOperator[Asc] { def apply(c1: Column, c2: Any) = c1.asc }
+
+        implicit def op_is_desc: SparkOperator[Desc] 
+            = new SparkOperator[Desc] { def apply(c1: Column, c2: Any) = c1.desc }
     }
 
     trait Compute[S <: HList, O <: COperator, I] { def toSparkColumn: Column }

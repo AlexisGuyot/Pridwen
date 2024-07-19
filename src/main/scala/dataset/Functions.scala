@@ -30,6 +30,9 @@ object functions {
         def +[T](f2: T)(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AddOps[Add, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], T)] {}
         def -[T](f2: T)(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AddOps[Substract, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], T)] {}
         def /[T](f2: T)(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AddOps[Divide, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], T)] {}
+    
+        def asc(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new OrderOps[Asc, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
+        def desc(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new OrderOps[Desc, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
     }
 
     implicit class ExtendPath[WP1 <: HList, SP1 <: HList](p: Path.Aux[WP1, SP1]) {
@@ -52,6 +55,9 @@ object functions {
         def +[T](f2: T) = new AddOps[Add, (Path.Aux[WP1, SP1], T)] {}
         def -[T](f2: T) = new AddOps[Substract, (Path.Aux[WP1, SP1], T)] {}
         def /[T](f2: T) = new AddOps[Divide, (Path.Aux[WP1, SP1], T)] {}
+
+        def asc = new OrderOps[Asc, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
+        def desc = new OrderOps[Desc, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
     }
 
     implicit class ExtendMultiplePaths[MP <: HList, MPS <: HList](mp: MultiplePaths.Aux[MP, MPS]) {
@@ -62,5 +68,9 @@ object functions {
     implicit class ExtendFilterOps[O1 <: FOperator,I1](f1: FilterOps[O1,I1]) {
         def &&[O2 <: FOperator, I2](f2: FilterOps[O2, I2]) = new FilterOps[FilterOps.And[O1,O2], (I1,I2)] {}
         def ||[O2 <: FOperator, I2](f2: FilterOps[O2, I2]) = new FilterOps[FilterOps.Or[O1,O2], (I1,I2)] {}
+    }
+
+    implicit class ExtendOrderOps[O1 <: OOperator,I1](f1: OrderOps[O1,I1]) {
+        def &&[O2 <: OOperator, I2](f2: OrderOps[O2, I2]) = new OrderOps[OrderOps.And[O1,O2], (I1,I2)] {}
     }
 }
