@@ -1,14 +1,22 @@
 package pridwen.dataset
 
+import pridwen.types.models.{Model}
+import pridwen.types.support.{DeepLabelledGeneric => LabelledGeneric}
+import ColumnOps._
+
+import org.apache.spark.sql.Dataset
+
 import shapeless.{Witness, HNil, ::, HList, Widen}
 import shapeless.ops.hlist.Prepend
 
-object functions {
-    import ColumnOps._
+object implicits {
+    implicit class DatasetExtension[S, HS <: HList](ds: Dataset[S])(implicit toHList: LabelledGeneric.Aux[S, HS]) {
+        def asModel[M <: Model](implicit isValid: Model.As[HS, M]) = new Data[M, HS] { type DST = S ; val data = ds }
+    }
 
-    def col[FN <: Symbol](a: Witness.Aux[FN]): Witness.Aux[FN] = a
-    //def v[V](c: Witness.Aux[V]): Witness.Aux[V] = c
-    def v[V, T >: V](c: Witness.Aux[V])(implicit w: Widen.Aux[V, T]): Widen.Aux[V, T] = w
+    implicit def witnessToPath[FN <: Symbol, PS <: HList](f: Witness.Aux[FN])(implicit p: Path[Witness.Aux[FN] :: HNil]): Path.Aux[Witness.Aux[FN] :: HNil, p.T] = p
+    implicit def witnessToMultiple[FN <: Symbol](f: Witness.Aux[FN])(implicit mp: MultiplePaths[Witness.Aux[FN] :: HNil]): MultiplePaths.Aux[Witness.Aux[FN] :: HNil, mp.T] = mp
+    implicit def pathToMultiple[PW <: HList, PS <: HList, MPS <: HList](p: Path.Aux[PW, PS])(implicit mp: MultiplePaths[Path.Aux[PW, PS] :: HNil]): MultiplePaths.Aux[Path.Aux[PW, PS] :: HNil, mp.T] = mp
 
     implicit class ExtendWitness[FN1 <: Symbol](f1: Witness.Aux[FN1]) {
         def ->[FN2 <: Symbol](f2: Witness.Aux[FN2])(implicit path: Path[Witness.Aux[FN1] :: Witness.Aux[FN2] :: HNil]): Path.Aux[Witness.Aux[FN1] :: Witness.Aux[FN2] :: HNil, path.T] = path
@@ -33,6 +41,14 @@ object functions {
     
         def asc(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new OrderOps[Asc, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
         def desc(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new OrderOps[Desc, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
+
+        def count(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AggOps[Count, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
+        def max(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AggOps[Max, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
+        def min(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AggOps[Min, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
+        def avg(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AggOps[Avg, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
+        def median(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AggOps[Median, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
+        def sum(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AggOps[Sum, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
+        def product(implicit p1: Path[Witness.Aux[FN1] :: HNil]) = new AggOps[Product, (Path.Aux[Witness.Aux[FN1] :: HNil, p1.T], Path.Aux[Witness.Aux[FN1] :: HNil, p1.T])] {}
     }
 
     implicit class ExtendPath[WP1 <: HList, SP1 <: HList](p: Path.Aux[WP1, SP1]) {
@@ -58,6 +74,14 @@ object functions {
 
         def asc = new OrderOps[Asc, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
         def desc = new OrderOps[Desc, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
+
+        def count = new AggOps[Count, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
+        def max = new AggOps[Max, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
+        def min = new AggOps[Min, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
+        def avg = new AggOps[Avg, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
+        def median = new AggOps[Median, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
+        def sum = new AggOps[Sum, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
+        def product = new AggOps[Product, (Path.Aux[WP1, SP1], Path.Aux[WP1, SP1])] {}
     }
 
     implicit class ExtendMultiplePaths[MP <: HList, MPS <: HList](mp: MultiplePaths.Aux[MP, MPS]) {
@@ -73,4 +97,14 @@ object functions {
     implicit class ExtendOrderOps[O1 <: OOperator,I1](f1: OrderOps[O1,I1]) {
         def &&[O2 <: OOperator, I2](f2: OrderOps[O2, I2]) = new OrderOps[OrderOps.And[O1,O2], (I1,I2)] {}
     }
+
+    implicit class ExtendAggOps[O1 <: AggOperator,I1](f1: AggOps[O1,I1]) {
+        def &&[O2 <: AggOperator, I2](f2: AggOps[O2, I2]) = new AggOps[AggOps.And[O1,O2], (I1,I2)] {}
+    }
+}
+
+object functions {
+    def col[FN <: Symbol](a: Witness.Aux[FN]): Witness.Aux[FN] = a
+    //def v[V](c: Witness.Aux[V]): Witness.Aux[V] = c
+    def v[V, T >: V](c: Witness.Aux[V])(implicit w: Widen.Aux[V, T]): Widen.Aux[V, T] = w
 }

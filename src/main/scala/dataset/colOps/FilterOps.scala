@@ -1,15 +1,13 @@
 package pridwen.dataset
 
-import pridwen.types.opschema.SelectField
+import ColumnOps._
 
-import shapeless.{HList, Witness, HNil, ::, Widen}
+import shapeless.HList
 
-import org.apache.spark.sql.{Column}
-import org.apache.spark.sql.functions.{col}
+import org.apache.spark.sql.Column
 
-trait FilterOps[O, I]
+trait FilterOps[O <: FOperator, I]
 object FilterOps {
-    import ColumnOps._
 
     trait And[O1 <: FOperator, O2 <: FOperator] extends FOperator ; trait Or[O1 <: FOperator, O2 <: FOperator] extends FOperator
 

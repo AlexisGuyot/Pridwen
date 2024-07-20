@@ -49,16 +49,6 @@ trait Data[M <: Model, S <: HList] {
     def count: Long = data.count
 }
 
-object implicits {
-    implicit class DatasetExtension[S, HS <: HList](ds: Dataset[S])(implicit toHList: LabelledGeneric.Aux[S, HS]) {
-        def asModel[M <: Model](implicit isValid: Model.As[HS, M]) = new Data[M, HS] { type DST = S ; val data = ds }
-    }
-
-    implicit def witnessToPath[FN <: Symbol, PS <: HList](f: Witness.Aux[FN])(implicit p: Path[Witness.Aux[FN] :: HNil]): Path.Aux[Witness.Aux[FN] :: HNil, p.T] = p
-    implicit def witnessToMultiple[FN <: Symbol](f: Witness.Aux[FN])(implicit mp: MultiplePaths[Witness.Aux[FN] :: HNil]): MultiplePaths.Aux[Witness.Aux[FN] :: HNil, mp.T] = mp
-    implicit def pathToMultiple[PW <: HList, PS <: HList, MPS <: HList](p: Path.Aux[PW, PS])(implicit mp: MultiplePaths[Path.Aux[PW, PS] :: HNil]): MultiplePaths.Aux[Path.Aux[PW, PS] :: HNil, mp.T] = mp
-}
-
 object Data {
     def apply[S, HS <: HList](ds: Dataset[S])(implicit toHList: LabelledGeneric.Aux[S, HS]) = new {
         def as[M <: Model](implicit isValid: Model.As[HS, M]) = new Data[M, HS] { type DST = S ; val data = ds }
@@ -81,12 +71,6 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
     }
 
     // ============ Project attribute(s)
-
-    // Project one attribute (Path)
-    /* def select[PW <: HList, PS <: HList, FN, FT](path: Path.Aux[PW, PS])(implicit s: SelectField.Aux[S, PS, FN, FT]): Data[M, FieldType[FN, FT] :: HNil] = new Data[M, FieldType[FN, FT] :: HNil] {
-        type DST = Row
-        val data = d.data.select(d.data.col(path.asString))
-    } */
 
     // Project one attribute (Path with alias)
     def select[PW <: HList, NN <: Symbol, PS <: HList, FT](path: Path.As.Aux[PW, NN, PS])(implicit s: SelectField.As.Aux[S, PS, NN, FT], alias: Witness.Aux[NN]): Data[M, FieldType[NN, FT] :: HNil] = new Data[M, FieldType[NN, FT] :: HNil] {
@@ -304,7 +288,32 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
 
     // ============ Aggregate datasets
     
-    // Groupby + aggregate
+    def groupBy[MPW <: HList, MPS <: HList, P <: HList, F <: HList, GS <: HList, NS <: HList](
+        columns: MultiplePaths.Aux[MPW, MPS]
+    ) = new {
+        def agg[O <: AggOperator, I](a: AggOps[O, I])(
+            implicit
+            op: AggOps.Compute.Aux[S, O, I, P, F],
+            select_grouped: SelectMany.Aux[S, MPS, GS],
+            add: AddMany.Aux[GS, P, F, NS]
+        ) = new {
+                private def common[A <: Model, B <: HList]: Data[A,B] = new Data[A,B]{
+                    type DST = Row
+                    val data = { 
+                        val fagg = op.toSparkColumn
+                        op.newNames.foldLeft(
+                            d.data.groupBy(columns.toColumns:_*).agg(fagg.head, fagg.tail:_*)
+                        )((ds, nn) => ds.withColumnRenamed(s"${nn._1}(${nn._2})", nn._1))
+                    }
+                }
+
+                // Without model change
+                def keepModel(implicit isValid: Model.As[NS, M]): Data[M, NS] = common[M, NS]
+
+                // With model change
+                def changeModel[NM <: Model](implicit isValid: Model.As[NS, NM]): Data[NM, NS] = common[NM, NS]
+            }
+    }
 
     // ============ Sort datasets
 

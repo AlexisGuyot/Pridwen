@@ -1,18 +1,15 @@
 package pridwen.dataset
 
 import pridwen.types.opschema.SelectField
+import ColumnOps._
 
 import shapeless.{HList, Witness, HNil, ::, Widen}
 import shapeless.ops.hlist.Selector
 
 import org.apache.spark.sql.{Column}
-import org.apache.spark.sql.functions.{col}
 
-import scala.reflect.runtime.universe.TypeTag
-
-trait AddOps[O, I]
+trait AddOps[O <: AOperator, I]
 object AddOps {
-    import ColumnOps._
 
     private type Numbers = Int :: Double :: Long :: Short :: Float :: HNil
 

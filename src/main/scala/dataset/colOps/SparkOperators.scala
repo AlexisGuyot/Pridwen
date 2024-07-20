@@ -5,7 +5,7 @@ import pridwen.types.opschema.SelectField
 import shapeless.{HList, Witness, HNil, ::, Widen}
 
 import org.apache.spark.sql.{Column}
-import org.apache.spark.sql.functions.{col}
+import org.apache.spark.sql.functions.{col, count, max, min, avg, median, sum, product}
 
 object ColumnOps {
     trait COperator
@@ -13,6 +13,7 @@ object ColumnOps {
     trait FOperator extends COperator
     trait AOperator extends COperator
     trait OOperator extends COperator
+    trait AggOperator extends COperator
 
     trait Equal extends FOperator with AOperator
     trait Different extends FOperator with AOperator
@@ -34,6 +35,14 @@ object ColumnOps {
 
     trait Asc extends OOperator
     trait Desc extends OOperator
+
+    trait Count extends AggOperator
+    trait Max extends AggOperator
+    trait Min extends AggOperator
+    trait Avg extends AggOperator
+    trait Median extends AggOperator
+    trait Sum extends AggOperator
+    trait Product extends AggOperator
 
     trait SparkOperator[O <: COperator] { def apply(c1: Column, c2: Any): Column }
     object SparkOperator {
@@ -81,6 +90,27 @@ object ColumnOps {
 
         implicit def op_is_desc: SparkOperator[Desc] 
             = new SparkOperator[Desc] { def apply(c1: Column, c2: Any) = c1.desc }
+
+        implicit def op_is_count: SparkOperator[Count] 
+            = new SparkOperator[Count] { def apply(c1: Column, c2: Any) = count(c1) }
+
+        implicit def op_is_max: SparkOperator[Max] 
+            = new SparkOperator[Max] { def apply(c1: Column, c2: Any) = max(c1) }
+
+        implicit def op_is_min: SparkOperator[Min] 
+            = new SparkOperator[Min] { def apply(c1: Column, c2: Any) = min(c1) }
+
+        implicit def op_is_avg: SparkOperator[Avg] 
+            = new SparkOperator[Avg] { def apply(c1: Column, c2: Any) = avg(c1) }
+
+        implicit def op_is_median: SparkOperator[Median] 
+            = new SparkOperator[Median] { def apply(c1: Column, c2: Any) = median(c1) }
+
+        implicit def op_is_sum: SparkOperator[Sum] 
+            = new SparkOperator[Sum] { def apply(c1: Column, c2: Any) = sum(c1) }
+
+        implicit def op_is_product: SparkOperator[Product] 
+            = new SparkOperator[Product] { def apply(c1: Column, c2: Any) = product(c1) }
     }
 
     trait Compute[S <: HList, O <: COperator, I] { def toSparkColumn: Column }
