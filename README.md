@@ -45,6 +45,10 @@ Sub-project used to validate and evaluate the library in the context of my phd t
 
 Here too, the code is documented to make this part of the project easier to understand directly from the source code. 
 
+## Dataset
+
+Extension of Spark datasets based on the different new types provided by the Pridwen library. See docs/PridwenDatasets<VF/VE>.pdf for more information.
+
 ## How to use the project
 
 Simply clone the git repository and use sbt to compile/package the project. Or download the provided release and add it to your project.

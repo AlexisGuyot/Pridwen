@@ -73,18 +73,18 @@ class DatasetTests extends AnyFlatSpec {
         data.select(col('att1).as('test)).describe(true)
         dataN.select(col('att4) && (col('att7) -> col('att1)).as('test)).describe(true)
 
-        // ******** Securities provided through types
+        // ******** Safety brought by typing
 
         // Impossible to project an attribute that does not exist in the data schema
         "data.select(col('fail)).describe(true)" shouldNot typeCheck
 
         // -------- Row(s) selection 
 
-        // Comparison between the values of some attributes
+        // By comparing the values of some attributes
         dataN.filter(col('att4) === col('att7) -> col('att1)).describe(true)
         dataN.select(col('att4) && col('att7) -> col('att1)).filter(col('att4) === col('att1)).describe(true)
 
-        // Comparison with a constant value
+        // By comparing the values of an attribute with a constant value
         dataN.filter(col('att7) -> col('att1) === v("D")).describe(true)
         dataN.select(col('att4) && col('att7) -> col('att1)).filter(col('att4) === v("A")).describe(true)
         data.filter(col('att2) =!= v(2)).describe(true)
@@ -102,7 +102,7 @@ class DatasetTests extends AnyFlatSpec {
         data.filter(col('att1) && col('att2), (x: String, y: Int) => x == "A" || y == 2).describe(true)     // Applied on some attributes
         data.filter((x: String, y: Int, z: Boolean) => x == "A" || y == 2 || z).describe(true)              // Applied on all attributes
 
-        // ******** Securities provided through types
+        // ******** Safety brought by typing
 
         // Impossible to compare two columns that have different types
         "dataN.filter(col('att4) === col('att7) -> col('att2)).describe(true)" shouldNot typeCheck
@@ -117,7 +117,7 @@ class DatasetTests extends AnyFlatSpec {
 
         "dataN.filter(col('fail) === col('att7) -> col('att1)).describe(true)" shouldNot typeCheck
 
-        // -------- Addition of an attribute 
+        // -------- Adding a new attribute
 
         // New attribute with constant values
         data.add(col('test), 0).keepModel.describe(true)
@@ -139,7 +139,7 @@ class DatasetTests extends AnyFlatSpec {
         data.add(col('test), col('att1) && col('att2), (x: String, y: Int) => s"$x$y").keepModel.describe(true)
         data.add(col('test), "*", (x: String, y: Int, z: Boolean) => 0).keepModel.describe(true)
 
-        // ******** Securities provided through types
+        // ******** Safety brought by typing
 
         // Impossible to add an attribute not supported by the model of the dataset
         "data.add(col('test), List[Int]()).keepModel.describe(true)" shouldNot typeCheck
@@ -152,12 +152,12 @@ class DatasetTests extends AnyFlatSpec {
         "data.add(col('test), col('fail) + v(10)).keepModel.describe(true)" shouldNot typeCheck
         """data.add(col('test), col('att1) && col('att2), (x: String, y: String) => s"$x$y").keepModel.describe(true)""" shouldNot typeCheck
 
-        // -------- Deletion of an attribute 
+        // -------- Deleting an attribute
 
         data.drop(col('att1)).describe(true)
         /*dataN.drop(col('att7) -> col('att1)).describe(true)*/ // Not working well for now with nested attributes, WIP.
 
-        // ******** Securities provided through types
+        // ******** Safety brought by typing
 
         // Impossible to drop an attribute that does not exist in the data schema
         "data.drop(col('fail)).describe(true)" shouldNot typeCheck
@@ -171,7 +171,7 @@ class DatasetTests extends AnyFlatSpec {
         data.update('att1, 'test, (x: String) => 0).keepModel.describe(true)
         data.update('att1, (x: String) => 0).keepModel.describe(true)
 
-        // ******** Securities provided through types
+        // ******** Safety brought by typing
 
         // Impossible to update/rename an attribute that does not exist, impossible to apply a UDF with a wrong signature (see select/filter/add/drop).
         "data.update('fail, 'test, (x: String) => 0).keepModel.describe(true)" shouldNot compile
@@ -182,7 +182,7 @@ class DatasetTests extends AnyFlatSpec {
         data.orderBy(col('att1).desc).describe(true)
         data.orderBy(col('att1).desc && col('att2).asc).describe(true)
 
-        // ******** Securities provided through types
+        // ******** Safety brought by typing
 
         // Impossible to use an attribute that does not exist to order the dataset
         "data.orderBy(col('fail).desc).describe(true)" shouldNot compile
@@ -204,7 +204,7 @@ class DatasetTests extends AnyFlatSpec {
         data.join(data2, col('att1) === col('truc), "inner").keepLeftModel.describe(true)
         data.join(data2, col('att1) === col('truc), "left").keepLeftModel.describe(true)
 
-        // ******** Securities provided through types
+        // ******** Safety brought by typing
 
         // Impossible to request a not supported join mode.
         """data.join(data2, col('att1) === col('truc), "fail").keepLeftModel.describe(true)""" shouldNot typeCheck
@@ -220,7 +220,7 @@ class DatasetTests extends AnyFlatSpec {
             .agg(col('att3).count && col('att2).avg && col('att2).max)
             .keepModel.describe(true)
 
-        // ******** Securities provided through types
+        // ******** Safety brought by typing
 
         // Impossible to use the avg, sum and product predefined operations on non numeric attributes
         "data.groupBy(col('att3)).agg(col('att1).avg).keepModel.describe(true)" shouldNot typeCheck
