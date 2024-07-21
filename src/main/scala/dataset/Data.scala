@@ -4,7 +4,7 @@ import pridwen.types.models._
 import pridwen.types.opschema._
 import pridwen.types.support.{DeepLabelledGeneric => LabelledGeneric, DecompPath}
 
-import ColumnOps._
+import ColumnOps.{FOperator, AOperator, OOperator, AggOperator}
 
 import shapeless.{HList, HNil, ::, Witness}
 import shapeless.labelled.{FieldType}
@@ -21,8 +21,10 @@ trait Data[M <: Model, S <: HList] {
     type DST
     val data: Dataset[DST]
     def toDF(): DataFrame = data.toDF
-    def toDS[CS <: Product](implicit toHList: LabelledGeneric.Aux[CS,S], enc: Encoder[CS]): Dataset[CS] = data.as[CS]
-    def toDS: Dataset[DST] = data
+    def toDS = new {
+        def apply: Dataset[DST] = data
+        def withSchema[CS <: Product](implicit toHList: LabelledGeneric.Aux[CS,S], enc: Encoder[CS]): Dataset[CS] = data.as[CS]
+    }
 
     // show
     def show(numRows: Int, truncate: Int, vertical: Boolean): Unit = data.show(numRows, truncate, vertical)
@@ -263,13 +265,15 @@ final class DataOps[M <: Model, S <: HList](d: Data[M, S]) {
 
     // ============ Join between datasets
 
-    type JoinModes = Witness.`"inner"`.T :: Witness.`"cross"`.T :: Witness.`"outer"`.T :: Witness.`"full"`.T :: Witness.`"fullouter"`.T :: Witness.`"full_outer"`.T :: Witness.`"left"`.T :: Witness.`"leftouter"`.T :: Witness.`"left_outer"`.T :: Witness.`"right"`.T :: Witness.`"rightouter"`.T :: Witness.`"right_outer"`.T :: Witness.`"semi"`.T :: Witness.`"leftsemi"`.T :: Witness.`"left_semi"`.T :: Witness.`"anti"`.T :: Witness.`"leftanti"`.T :: Witness.`"left_anti"`.T :: HNil
+    //type JoinModes = Witness.`"inner"`.T :: Witness.`"cross"`.T :: Witness.`"outer"`.T :: Witness.`"full"`.T :: Witness.`"fullouter"`.T :: Witness.`"full_outer"`.T :: Witness.`"left"`.T :: Witness.`"leftouter"`.T :: Witness.`"left_outer"`.T :: Witness.`"right"`.T :: Witness.`"rightouter"`.T :: Witness.`"right_outer"`.T :: Witness.`"semi"`.T :: Witness.`"leftsemi"`.T :: Witness.`"left_semi"`.T :: Witness.`"anti"`.T :: Witness.`"leftanti"`.T :: Witness.`"left_anti"`.T :: HNil
+    type JoinModes = Witness.`"inner"`.T :: Witness.`"cross"`.T :: Witness.`"outer"`.T :: Witness.`"full"`.T :: Witness.`"fullouter"`.T :: Witness.`"full_outer"`.T :: Witness.`"left"`.T :: Witness.`"leftouter"`.T :: Witness.`"left_outer"`.T :: Witness.`"right"`.T :: Witness.`"rightouter"`.T :: Witness.`"right_outer"`.T :: HNil
 
     def join[S2 <: HList, M2 <: Model, O <: FOperator, I, JM <: String, NS <: HList](
         d2: Data[M2, S2], cond: FilterOps[O,I], joinType: Witness.Aux[JM] = Witness("inner")
     )(
         implicit
-        @implicitNotFound("[Pridwen / Dataset] Unknown join mode ${JM}. Please chose one among inner, cross, outer, full, fullouter, full_outer, left, leftouter, left_outer, right, rightouter, right_outer, semi, leftsemi, left_semi, anti, leftanti, left_anti.") 
+        //@implicitNotFound("[Pridwen / Dataset] Unknown join mode ${JM}. Please chose one among inner, cross, outer, full, fullouter, full_outer, left, leftouter, left_outer, right, rightouter, right_outer, semi, leftsemi, left_semi, anti, leftanti, left_anti.") 
+        @implicitNotFound("[Pridwen / Dataset] Unknown join mode ${JM}. Please chose one among inner, cross, outer, full, fullouter, full_outer, left, leftouter, left_outer, right, rightouter, right_outer.") 
         modeExists: Selector[JoinModes, JM],
         j: JoinOps.Aux[S, S2, O, I, NS]
     ) = new {
