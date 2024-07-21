@@ -28,7 +28,6 @@ class DatasetTests extends AnyFlatSpec {
     import pridwen.dataset.implicits._
 
     "Data" should "provide the same main functionalities as Spark's dataset while providing a better type safety" in {
-
         // =========== Turning into Pridwen Datasets
         
         // Three different syntaxes for turning Spark datasets into Pridwen datasets. Available models = Relation, JSON, Graph (property, as list of edges)
@@ -42,7 +41,9 @@ class DatasetTests extends AnyFlatSpec {
 
         // Function "describe" prints information about the dataset. The first argument (optional) gives a name to the dataset, the second one (optional) specifies if the underlying dataframe should be printed (show).
 
-        data.describe("MyDataset", true)
+        data.describe("MyRelation", true)
+        dataM.describe("MyMultiJSON", true)
+        dataN.describe("MyNestedJSON", true)
 
         // =========== Turning back to Spark Datasets
 
@@ -54,6 +55,7 @@ class DatasetTests extends AnyFlatSpec {
         // -------- Model change (if possible)
 
         data.as[JSON].describe(true)
+        "dataM.as[Relation].describe(true)" shouldNot typeCheck
         /*data.as[Graph].describe(true)*/   // Not possible, the schema of data does not conform to this model
 
         // -------- Attribute(s) projection
@@ -113,6 +115,8 @@ class DatasetTests extends AnyFlatSpec {
         "data.filter(col('att1) && col('att2), (x: String, y: String) => true).describe(true)" shouldNot typeCheck
         "data.filter(col('att1) && col('att2), (x: String, y: Int, z: Boolean) => y == 2).describe(true)" shouldNot typeCheck
 
+        "dataN.filter(col('fail) === col('att7) -> col('att1)).describe(true)" shouldNot typeCheck
+
         // -------- Addition of an attribute 
 
         // New attribute with constant values
@@ -145,6 +149,8 @@ class DatasetTests extends AnyFlatSpec {
         "data.add(col('test), col('att1) + col('att2)).keepModel.describe(true)" shouldNot typeCheck
 
         // Impossible to use an attribute that does not exist, impossible to apply operations on attributes/values with different types, impossible to apply a UDF with a wrong signature (see select/filter)
+        "data.add(col('test), col('fail) + v(10)).keepModel.describe(true)" shouldNot typeCheck
+        """data.add(col('test), col('att1) && col('att2), (x: String, y: String) => s"$x$y").keepModel.describe(true)""" shouldNot typeCheck
 
         // -------- Deletion of an attribute 
 
@@ -168,11 +174,18 @@ class DatasetTests extends AnyFlatSpec {
         // ******** Securities provided through types
 
         // Impossible to update/rename an attribute that does not exist, impossible to apply a UDF with a wrong signature (see select/filter/add/drop).
+        "data.update('fail, 'test, (x: String) => 0).keepModel.describe(true)" shouldNot compile
+        "data.update('att1, 'test, (x: Int) => 0).keepModel.describe(true)" shouldNot compile
 
         // -------- Sorting a dataset
 
         data.orderBy(col('att1).desc).describe(true)
         data.orderBy(col('att1).desc && col('att2).asc).describe(true)
+
+        // ******** Securities provided through types
+
+        // Impossible to use an attribute that does not exist to order the dataset
+        "data.orderBy(col('fail).desc).describe(true)" shouldNot compile
 
         // -------- Joins between datasets
 
@@ -184,7 +197,6 @@ class DatasetTests extends AnyFlatSpec {
         data.join(data2, col('att1) === col('truc) && col('att2) > col('test)).keepLeftModel.describe(true)
         data.join(data2, col('att1) === col('truc) && col('att2) > col('test)).keepRightModel.describe(true)
 
-        /*data.join(dataM, col('att1) === col('att1)).keepLeftModel.describe(true)*/ // Not possible because the left model is Relation and the join result contains a multivalued attribute coming from dataM
         data.join(dataM, col('att1) === col('att1)).keepRightModel.describe(true)
         data.join(dataM, col('att1) === col('att1)).changeModel[JSON].describe(true)
 
@@ -198,6 +210,8 @@ class DatasetTests extends AnyFlatSpec {
         """data.join(data2, col('att1) === col('truc), "fail").keepLeftModel.describe(true)""" shouldNot typeCheck
 
         // Impossible to use attributes that does not exist in the data schema, impossible to create a new dataset with a schema that does not conform to the requested model (see filter/add/update)
+        "data.join(data2, col('fail) === col('truc)).keepLeftModel.describe(true)" shouldNot typeCheck
+        "data.join(dataM, col('att1) === col('att1)).keepLeftModel.describe(true)" shouldNot typeCheck
 
         // -------- Aggregation of a dataset
 
@@ -212,6 +226,7 @@ class DatasetTests extends AnyFlatSpec {
         "data.groupBy(col('att3)).agg(col('att1).avg).keepModel.describe(true)" shouldNot typeCheck
 
         // Impossible to use attributes that does not exist in the data schema, impossible to create a new dataset with a schema that does not conform to the requested model (see add/update/join)
+        "data.groupBy(col('fail)).agg(col('fail).count).keepModel.describe(true)" shouldNot typeCheck
 
         spark.close
     }
