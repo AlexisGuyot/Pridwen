@@ -1,7 +1,7 @@
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.sql.types.{StructType, StructField}
-import org.apache.spark.sql.functions.udf
+import org.apache.spark.sql.functions.{udf, col}
 
 import breeze.linalg.CSCMatrix
 
@@ -32,8 +32,10 @@ object WorkflowDataset extends App {
 
     case class NodeRT1(uid: String) ; case class Edge(weight: Int)
     case class SchemaRT1(source: NodeRT1, dest: NodeRT1, edge: Edge)
+    case class BadNodeRT1(uid: List[String]) ; case class BadSchemaRT1(source: BadNodeRT1, dest: BadNodeRT1, edge: Edge)
     case class TmpSchema(source: String, dest: String)
-    val g_rt: Dataset[SchemaRT1] = time { 
+
+    val g_rt = time { 
         println("--- Substep 1/2: Edge aggregation.")
         val d = time { input_dataset_rt.select(input_dataset_rt.col("user.id").as("source"), input_dataset_rt.col("retweeted_status.user.id").as("dest"))
               .as[TmpSchema]
@@ -41,7 +43,8 @@ object WorkflowDataset extends App {
               .count() }
         
         println("--- Substep 2/2: Modelling data as a graph.")
-        time { d.map(tuple => SchemaRT1(NodeRT1(tuple._1._1), NodeRT1(tuple._1._2), Edge(tuple._2.toInt))).as[SchemaRT1] }
+        time { d.map(tuple => SchemaRT1(NodeRT1(tuple._1._1), NodeRT1(tuple._1._2), Edge(tuple._2.toInt))).as[SchemaRT1] }        
+        //time { d.map(tuple => BadSchemaRT1(BadNodeRT1(List(tuple._1._1)), BadNodeRT1(List(tuple._1._2)), Edge(tuple._2.toInt))).as[BadSchemaRT1] }      // Bad transfo (1/2)
     }
 
     println("\n-- Step 2/8: Community detection.")
@@ -63,6 +66,11 @@ object WorkflowDataset extends App {
             NodeRT2(tuple.dest.uid, nodes.getOrElse(tuple.dest.uid, -1)),
             Edge(tuple.edge.weight)
         ))}
+        /* g_rt.map(tuple => SchemaRT2(
+            NodeRT2(tuple.source.uid(0), nodes.getOrElse(tuple.source.uid(0), -1)),
+            NodeRT2(tuple.dest.uid(0), nodes.getOrElse(tuple.dest.uid(0), -1)),
+            Edge(tuple.edge.weight)
+        ))} */                                                                                                                                            // Bad transfo (2/2)
     }
 
     println("\n-- Step 3/8: Elimination of non-significant communities.")
@@ -73,6 +81,7 @@ object WorkflowDataset extends App {
             val resolution_limit = java.lang.Math.sqrt(2*g_rt2.count)
             println("Resolution limit: " + resolution_limit)
             nodes.groupByKey(node => node.community).count.filter(pair => pair._2 >= resolution_limit).withColumnRenamed("key", "community") 
+            //nodes.groupByKey(node => node.comunity).count.filter(pair => pair._2 >= resolution_limit).withColumnRenamed("key", "community")           // No att
         }
 
         println("--- Substep 2/2: Creation of a new graph excluding members of non-significant communities")
@@ -106,24 +115,34 @@ object WorkflowDataset extends App {
     case class TmpSchemaQ2(source: NodeQ2, dest: NodeQ1, edge: Edge)
     val g_i: Dataset[SchemaQ2] = time { 
         println("--- Substep 1/2: Integrating the attributes of source nodes with the attributes of the relation.")
-        val tmp = time { g_q.joinWith(n_rt, g_q.col("source.uid") === n_rt.col("uid"), "inner")
+        val graph = g_q ; val relation = n_rt
+        //val graph = n_rt ; val relation = g_q                                                                                                         // Bad model
+        val tmp = time { graph.join(relation, graph.col("source.uid") === relation.col("uid"), "inner").withColumnRenamed("community", "source_community").drop("uid") }
+
+        println("--- Substep 2/2: Integrating the attributes of destination nodes with the attributes of the relation.")
+        val new_graph: Dataset[SchemaQ2] = time { 
+            tmp.join(relation, tmp.col("dest.uid") === relation.col("uid"), "inner")
+                .select(col("source.uid"), col("source_community"), col("dest.uid"), col("community"), col("edge.weight"))
+                .map(row => SchemaQ2(NodeQ2(row.getString(0), row.getInt(1)), NodeQ2(row.getString(2), row.getInt(3)), Edge(row.getInt(4)))) 
+        }
+        /* val tmp = time { graph.joinWith(relation, graph.col("source.uid") === relation.col("uid"), "inner")
                             .map(tuple => TmpSchemaQ2(NodeQ2(tuple._1.source.uid, tuple._2.community), tuple._1.dest, tuple._1.edge))
          }
 
         println("--- Substep 2/2: Integrating the attributes of destination nodes with the attributes of the relation.")
-        val graph: Dataset[SchemaQ2] = time { tmp.joinWith(n_rt, tmp.col("dest.uid") === n_rt.col("uid"), "inner")
-            .map(tuple => SchemaQ2(tuple._1.source, NodeQ2(tuple._1.dest.uid, tuple._2.community), tuple._1.edge)) }
+        val new_graph: Dataset[SchemaQ2] = time { tmp.joinWith(relation, tmp.col("dest.uid") === relation.col("uid"), "inner")
+            .map(tuple => SchemaQ2(tuple._1.source, NodeQ2(tuple._1.dest.uid, tuple._2.community), tuple._1.edge)) } */
 
         println("--- Substep 1/2: Calculating the size of communities.")
         val community_sizes = time { 
-            val nodes: Dataset[NodeQ2] = graph.map(tuple => tuple.source).distinct.union(graph.map(tuple => tuple.dest)).distinct
-            val resolution_limit = java.lang.Math.sqrt(2*graph.count)
+            val nodes: Dataset[NodeQ2] = new_graph.map(tuple => tuple.source).distinct.union(new_graph.map(tuple => tuple.dest)).distinct
+            val resolution_limit = java.lang.Math.sqrt(2*new_graph.count)
             println("Resolution limit: " + resolution_limit)
             nodes.groupByKey(node => node.community).count.filter(pair => pair._2 >= resolution_limit).withColumnRenamed("key", "community") 
         }
 
         println("--- Substep 2/2: Creation of a new graph excluding members of non-significant communities")
-        val new_nodes = graph.join(community_sizes, graph.col("source.community") === community_sizes.col("community"), "left_semi")
+        val new_nodes = new_graph.join(community_sizes, new_graph.col("source.community") === community_sizes.col("community"), "left_semi")
         new_nodes.join(community_sizes, new_nodes.col("dest.community") === community_sizes.col("community"), "left_semi").as[SchemaQ2]
     }
 
@@ -142,6 +161,8 @@ object WorkflowDataset extends App {
             g_i.collect.foreach(tuple => {
                 val sid = tuple.source.uid ; val did = tuple.dest.uid
                 val scomm = tuple.source.community ; val dcomm = tuple.dest.community
+                /* val sid = tuple.source.community ; val did = tuple.dest.community
+                val scomm = tuple.source.uid ; val dcomm = tuple.dest.uid */                                                                            // Bad att
                 
                 comm_map(sid) = scomm ; comm_map(did) = dcomm
 
