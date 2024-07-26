@@ -43,8 +43,8 @@ object WorkflowDataset extends App {
               .count() }
         
         println("--- Substep 2/2: Modelling data as a graph.")
-        time { d.map(tuple => SchemaRT1(NodeRT1(tuple._1._1), NodeRT1(tuple._1._2), Edge(tuple._2.toInt))).as[SchemaRT1] }        
-        //time { d.map(tuple => BadSchemaRT1(BadNodeRT1(List(tuple._1._1)), BadNodeRT1(List(tuple._1._2)), Edge(tuple._2.toInt))).as[BadSchemaRT1] }      // Bad transfo (1/2)
+        time { d.map(tuple => SchemaRT1(NodeRT1(tuple._1._1), NodeRT1(tuple._1._2), Edge(tuple._2.toInt))).as[SchemaRT1] }   
+        //time { d.map(tuple => BadSchemaRT1(BadNodeRT1(List(tuple._1._1)), BadNodeRT1(List(tuple._1._2)), Edge(tuple._2.toInt))).as[BadSchemaRT1] }      // Bad transfo (1/2)     
     }
 
     println("\n-- Step 2/8: Community detection.")
@@ -65,12 +65,12 @@ object WorkflowDataset extends App {
             NodeRT2(tuple.source.uid, nodes.getOrElse(tuple.source.uid, -1)),
             NodeRT2(tuple.dest.uid, nodes.getOrElse(tuple.dest.uid, -1)),
             Edge(tuple.edge.weight)
-        ))}
+        ))}                
         /* g_rt.map(tuple => SchemaRT2(
             NodeRT2(tuple.source.uid(0), nodes.getOrElse(tuple.source.uid(0), -1)),
             NodeRT2(tuple.dest.uid(0), nodes.getOrElse(tuple.dest.uid(0), -1)),
             Edge(tuple.edge.weight)
-        ))} */                                                                                                                                            // Bad transfo (2/2)
+        ))} */                                                                                                                                            // Bad transfo (2/2)                                                                                                                          
     }
 
     println("\n-- Step 3/8: Elimination of non-significant communities.")
@@ -116,7 +116,7 @@ object WorkflowDataset extends App {
     val g_i: Dataset[SchemaQ2] = time { 
         println("--- Substep 1/2: Integrating the attributes of source nodes with the attributes of the relation.")
         val graph = g_q ; val relation = n_rt
-        //val graph = n_rt ; val relation = g_q                                                                                                         // Bad model
+        //val graph = g_q ; val relation = g_rt3                                                                                                         // Bad model
         val tmp = time { graph.join(relation, graph.col("source.uid") === relation.col("uid"), "inner").withColumnRenamed("community", "source_community").drop("uid") }
 
         println("--- Substep 2/2: Integrating the attributes of destination nodes with the attributes of the relation.")
