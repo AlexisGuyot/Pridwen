@@ -9,7 +9,7 @@ import scala.collection.mutable.Map
 import scala.collection.immutable.Queue
 import scala.collection.parallel.CollectionConverters._
 
-object sparkop {
+object dframeop {
     import commons.{time, file_grt}
 
     val spark = SparkSession.builder.master("local").appName("Tests Pridwen").getOrCreate

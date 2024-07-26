@@ -1,8 +1,8 @@
 import commons._
 
-import sparkop._
+import dframeop._
 
-object WorkflowSpark extends App {  
+object WorkflowDataFrame extends App {  
     println("\n======= Data loading =======")
 
     val (input_dataset_rt, input_dataset_q) = time { load_json }
