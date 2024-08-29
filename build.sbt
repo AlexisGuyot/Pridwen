@@ -23,3 +23,10 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-sql" % sparkVersion,
   "org.apache.hadoop" % "hadoop-client-api" % "3.3.4"
 )
+
+// Breeze
+libraryDependencies  ++= Seq(
+  "org.scalanlp" %% "breeze" % "1.1",
+  "org.scalanlp" %% "breeze-natives" % "1.1",
+  "org.scalanlp" %% "breeze-viz" % "1.1"
+)
